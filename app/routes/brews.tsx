@@ -108,10 +108,24 @@ export default function Brews({ loaderData, actionData }: Route.ComponentProps) 
 
   return (
     <div className="mx-auto max-w-3xl space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold">Brews</h1>
-        <p className="text-sm text-gray-500">Log a cup as soon as it comes out of the machine.</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold">Brews</h1>
+          <p className="text-sm text-gray-500">Log a cup as soon as it comes out of the machine.</p>
+        </div>
+        <a
+          href="/brew-wizard"
+          className="shrink-0 rounded-lg bg-amber-700 px-4 py-2 text-sm font-medium text-white hover:bg-amber-800 sm:hidden"
+        >
+          📱 Use wizard
+        </a>
       </div>
+      <a
+        href="/brew-wizard"
+        className="hidden rounded-lg border border-dashed border-amber-700 p-3 text-center text-sm font-medium text-amber-700 hover:bg-amber-50 sm:block dark:text-amber-500 dark:hover:bg-amber-950"
+      >
+        📱 Prefer a step-by-step flow? Try the mobile-friendly brew wizard →
+      </a>
 
       <Form method="post" className="space-y-4 rounded-lg border border-gray-200 p-4 dark:border-gray-800">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

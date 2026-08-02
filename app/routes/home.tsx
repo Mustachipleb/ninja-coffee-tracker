@@ -67,8 +67,8 @@ export default function Home({ loaderData }: Route.ComponentProps) {
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <Link to="/brews" className="rounded-md bg-amber-700 px-4 py-2 text-sm font-medium text-white hover:bg-amber-800">
-          Log a brew
+        <Link to="/brew-wizard" className="rounded-md bg-amber-700 px-4 py-2 text-sm font-medium text-white hover:bg-amber-800">
+          📱 Log a brew
         </Link>
         <Link to="/beans" className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800">
           Add beans

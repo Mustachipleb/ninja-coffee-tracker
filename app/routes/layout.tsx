@@ -3,6 +3,7 @@ import { NavLink, Outlet } from "react-router";
 const NAV_LINKS = [
   { to: "/", label: "Dashboard", end: true },
   { to: "/brews", label: "Brews" },
+  { to: "/brew-wizard", label: "📱 Wizard" },
   { to: "/beans", label: "Beans" },
   { to: "/milks", label: "Milks" },
   { to: "/favorites", label: "Favorites" },
