@@ -1,5 +1,5 @@
 import { PrismaClient } from "../generated/prisma/client";
-import { BrewStyle } from "../generated/prisma/enums";
+import { BrewStyle, BasketSize } from "../generated/prisma/enums";
 
 const db = new PrismaClient();
 
@@ -28,24 +28,75 @@ async function main() {
     },
   });
 
+  const wholeMilk = await db.milkType.create({
+    data: { name: "Whole milk", pricePerLiterCents: 120 },
+  });
+
+  const oatMilk = await db.milkType.create({
+    data: { name: "Oat milk", pricePerLiterCents: 250 },
+  });
+
   await db.favoriteSetting.createMany({
     data: [
-      { userId: alex.id, label: "Morning Latte", grindAmountGrams: 20, milkFrothed: true, brewStyle: BrewStyle.SPECIALTY },
-      { userId: bri.id, label: "Quick Classic", grindAmountGrams: 16, milkFrothed: false, brewStyle: BrewStyle.CLASSIC },
-      { userId: cass.id, label: "Iced Afternoon", grindAmountGrams: 22, milkFrothed: false, brewStyle: BrewStyle.OVER_ICE },
+      {
+        userId: alex.id,
+        label: "Morning Latte",
+        basketSize: BasketSize.DOUBLE,
+        milkTypeId: wholeMilk.id,
+        milkVolumeMl: 150,
+        brewStyle: BrewStyle.SPECIALTY,
+      },
+      {
+        userId: bri.id,
+        label: "Quick Classic",
+        basketSize: BasketSize.SINGLE,
+        brewStyle: BrewStyle.CLASSIC,
+      },
+      {
+        userId: cass.id,
+        label: "Iced Afternoon",
+        basketSize: BasketSize.LUXE,
+        brewStyle: BrewStyle.OVER_ICE,
+      },
     ],
   });
 
   await db.brew.createMany({
     data: [
-      { userId: alex.id, beanId: yirgacheffe.id, grindAmountGrams: 20, milkFrothed: true, brewStyle: BrewStyle.SPECIALTY, label: "Morning Latte" },
-      { userId: bri.id, beanId: houseBlend.id, grindAmountGrams: 16, milkFrothed: false, brewStyle: BrewStyle.CLASSIC },
-      { userId: cass.id, beanId: yirgacheffe.id, grindAmountGrams: 22, milkFrothed: false, brewStyle: BrewStyle.OVER_ICE, label: "Iced Afternoon" },
-      { userId: alex.id, beanId: houseBlend.id, grindAmountGrams: 18, milkFrothed: false, brewStyle: BrewStyle.RICH },
+      {
+        userId: alex.id,
+        beanId: yirgacheffe.id,
+        basketSize: BasketSize.DOUBLE,
+        milkTypeId: wholeMilk.id,
+        milkVolumeMl: 150,
+        brewStyle: BrewStyle.SPECIALTY,
+        label: "Morning Latte",
+      },
+      {
+        userId: bri.id,
+        beanId: houseBlend.id,
+        basketSize: BasketSize.SINGLE,
+        brewStyle: BrewStyle.CLASSIC,
+      },
+      {
+        userId: cass.id,
+        beanId: yirgacheffe.id,
+        basketSize: BasketSize.LUXE,
+        brewStyle: BrewStyle.OVER_ICE,
+        label: "Iced Afternoon",
+      },
+      {
+        userId: alex.id,
+        beanId: houseBlend.id,
+        basketSize: BasketSize.DOUBLE,
+        milkTypeId: oatMilk.id,
+        milkVolumeMl: 100,
+        brewStyle: BrewStyle.RICH,
+      },
     ],
   });
 
-  console.log("Seeded users, beans, favorites, and brews.");
+  console.log("Seeded users, beans, milk types, favorites, and brews.");
 }
 
 main()

@@ -5,6 +5,7 @@ export default [
     index("routes/home.tsx"),
     route("brews", "routes/brews.tsx"),
     route("beans", "routes/beans.tsx"),
+    route("milks", "routes/milks.tsx"),
     route("favorites", "routes/favorites.tsx"),
     route("users", "routes/users.tsx"),
     route("costs", "routes/costs.tsx"),

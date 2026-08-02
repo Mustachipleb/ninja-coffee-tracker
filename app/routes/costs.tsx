@@ -1,13 +1,18 @@
 import { db } from "~/lib/db.server";
 import type { Route } from "./+types/costs";
 import { getUserCostSummaries } from "~/lib/cost-summary.server";
-import { brewCostCents } from "~/lib/cost";
+import { beanCostCents, milkCostCents } from "~/lib/cost";
 import { formatCents, formatGrams } from "~/lib/format";
+import { gramsForBasket } from "~/lib/basket-size";
 
 export async function loader(_args: Route.LoaderArgs) {
-  const [userSummaries, beans] = await Promise.all([
+  const [userSummaries, beans, milkTypes] = await Promise.all([
     getUserCostSummaries(),
     db.bean.findMany({
+      orderBy: { createdAt: "desc" },
+      include: { brews: { include: { user: true } } },
+    }),
+    db.milkType.findMany({
       orderBy: { createdAt: "desc" },
       include: { brews: { include: { user: true } } },
     }),
@@ -17,8 +22,8 @@ export async function loader(_args: Route.LoaderArgs) {
     const perUser = new Map<string, { name: string; grams: number; cents: number }>();
     for (const brew of bean.brews) {
       const entry = perUser.get(brew.userId) ?? { name: brew.user.name, grams: 0, cents: 0 };
-      entry.grams += brew.grindAmountGrams;
-      entry.cents += brewCostCents(brew, bean);
+      entry.grams += gramsForBasket(brew.basketSize);
+      entry.cents += beanCostCents(brew.basketSize, bean);
       perUser.set(brew.userId, entry);
     }
     return {
@@ -29,21 +34,38 @@ export async function loader(_args: Route.LoaderArgs) {
     };
   }).filter((bean) => bean.perUser.length > 0);
 
+  const milkBreakdowns = milkTypes.map((milk) => {
+    const perUser = new Map<string, { name: string; volumeMl: number; cents: number }>();
+    for (const brew of milk.brews) {
+      if (!brew.milkVolumeMl) continue;
+      const entry = perUser.get(brew.userId) ?? { name: brew.user.name, volumeMl: 0, cents: 0 };
+      entry.volumeMl += brew.milkVolumeMl;
+      entry.cents += milkCostCents(brew.milkVolumeMl, milk);
+      perUser.set(brew.userId, entry);
+    }
+    return {
+      id: milk.id,
+      name: milk.name,
+      totalCents: [...perUser.values()].reduce((sum, e) => sum + e.cents, 0),
+      perUser: [...perUser.values()].sort((a, b) => b.cents - a.cents),
+    };
+  }).filter((milk) => milk.perUser.length > 0);
+
   const grandTotalCents = userSummaries.reduce((sum, u) => sum + u.totalCents, 0);
   const totalBrews = userSummaries.reduce((sum, u) => sum + u.brewCount, 0);
 
-  return { userSummaries, beanBreakdowns, grandTotalCents, totalBrews };
+  return { userSummaries, beanBreakdowns, milkBreakdowns, grandTotalCents, totalBrews };
 }
 
 export default function Costs({ loaderData }: Route.ComponentProps) {
-  const { userSummaries, beanBreakdowns, grandTotalCents, totalBrews } = loaderData;
+  const { userSummaries, beanBreakdowns, milkBreakdowns, grandTotalCents, totalBrews } = loaderData;
 
   return (
     <div className="mx-auto max-w-3xl space-y-10">
       <div>
         <h1 className="text-2xl font-bold">Costs</h1>
         <p className="text-sm text-gray-500">
-          What everyone owes, based on how much bean (by weight and price) each brew used.
+          What everyone owes, based on how much bean and milk (by weight/volume and price) each brew used.
         </p>
       </div>
 
@@ -115,6 +137,36 @@ export default function Costs({ loaderData }: Route.ComponentProps) {
                   <li key={entry.name} className="flex justify-between text-gray-600 dark:text-gray-300">
                     <span>
                       {entry.name} · {formatGrams(entry.grams)}
+                    </span>
+                    <span>{formatCents(entry.cents)}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <h2 className="mb-2 text-lg font-semibold">Per milk</h2>
+        <p className="mb-2 text-xs text-gray-500">
+          Handy for settling up with whoever bought the milk.
+        </p>
+        <div className="space-y-4">
+          {milkBreakdowns.length === 0 && (
+            <p className="text-sm text-gray-500">No milk has been used yet.</p>
+          )}
+          {milkBreakdowns.map((milk) => (
+            <div key={milk.id} className="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
+              <div className="mb-2 flex items-center justify-between">
+                <p className="font-medium">{milk.name}</p>
+                <p className="text-sm text-gray-500">{formatCents(milk.totalCents)} total</p>
+              </div>
+              <ul className="space-y-1 text-sm">
+                {milk.perUser.map((entry) => (
+                  <li key={entry.name} className="flex justify-between text-gray-600 dark:text-gray-300">
+                    <span>
+                      {entry.name} · {entry.volumeMl}ml
                     </span>
                     <span>{formatCents(entry.cents)}</span>
                   </li>

@@ -4,13 +4,17 @@ import type { Route } from "./+types/brews";
 import { db } from "~/lib/db.server";
 import { getBeansWithUsage } from "~/lib/beans.server";
 import { brewCostCents } from "~/lib/cost";
-import { formatCents, formatDateTime, formatGrams } from "~/lib/format";
+import { formatCents, formatDateTime } from "~/lib/format";
 import { BREW_STYLE_OPTIONS, BREW_STYLE_LABELS, BrewStyle, isBrewStyle } from "~/lib/brew-style";
+import { BASKET_SIZE_OPTIONS, BASKET_SIZE_LABELS, BasketSize, isBasketSize } from "~/lib/basket-size";
+
+const DEFAULT_MILK_VOLUME_ML = 100;
 
 export async function loader() {
-  const [users, beans, favorites, brews] = await Promise.all([
+  const [users, beans, milkTypes, favorites, brews] = await Promise.all([
     db.user.findMany({ orderBy: { name: "asc" } }),
     getBeansWithUsage(),
+    db.milkType.findMany({ orderBy: { name: "asc" } }),
     db.favoriteSetting.findMany({
       include: { user: true },
       orderBy: [{ user: { name: "asc" } }, { label: "asc" }],
@@ -18,11 +22,11 @@ export async function loader() {
     db.brew.findMany({
       orderBy: { brewedAt: "desc" },
       take: 50,
-      include: { user: true, bean: true },
+      include: { user: true, bean: true, milkType: true },
     }),
   ]);
 
-  return { users, beans, favorites, brews };
+  return { users, beans, milkTypes, favorites, brews };
 }
 
 export async function action({ request }: Route.ActionArgs) {
@@ -32,27 +36,32 @@ export async function action({ request }: Route.ActionArgs) {
   if (intent === "create") {
     const userId = String(formData.get("userId") ?? "");
     const beanId = String(formData.get("beanId") ?? "");
-    const grindAmountGrams = Number(formData.get("grindAmountGrams"));
-    const milkFrothed = formData.get("milkFrothed") === "on";
+    const basketSizeRaw = String(formData.get("basketSize") ?? "");
+    const milkTypeId = String(formData.get("milkTypeId") ?? "").trim();
+    const milkVolumeMl = Number(formData.get("milkVolumeMl"));
     const brewStyleRaw = String(formData.get("brewStyle") ?? "");
     const label = String(formData.get("label") ?? "").trim();
 
     if (!userId || !beanId) {
       return data({ error: "Please choose who is brewing and which beans." }, { status: 400 });
     }
-    if (!Number.isFinite(grindAmountGrams) || grindAmountGrams <= 0) {
-      return data({ error: "Grind amount must be a positive number of grams." }, { status: 400 });
+    if (!isBasketSize(basketSizeRaw)) {
+      return data({ error: "Please choose a valid basket size." }, { status: 400 });
     }
     if (!isBrewStyle(brewStyleRaw)) {
       return data({ error: "Please choose a valid brew style." }, { status: 400 });
+    }
+    if (milkTypeId && (!Number.isFinite(milkVolumeMl) || milkVolumeMl <= 0)) {
+      return data({ error: "Please provide a positive milk volume (ml)." }, { status: 400 });
     }
 
     await db.brew.create({
       data: {
         userId,
         beanId,
-        grindAmountGrams,
-        milkFrothed,
+        basketSize: basketSizeRaw as BasketSize,
+        milkTypeId: milkTypeId || null,
+        milkVolumeMl: milkTypeId ? milkVolumeMl : null,
         brewStyle: brewStyleRaw as BrewStyle,
         label: label || null,
       },
@@ -70,14 +79,15 @@ export async function action({ request }: Route.ActionArgs) {
 }
 
 export default function Brews({ loaderData, actionData }: Route.ComponentProps) {
-  const { users, beans, favorites, brews } = loaderData;
+  const { users, beans, milkTypes, favorites, brews } = loaderData;
   const error = (actionData as { error?: string } | undefined)?.error;
   const navigation = useNavigation();
   const isSubmitting = navigation.state === "submitting";
 
   const [userId, setUserId] = useState(users[0]?.id ?? "");
-  const [grindAmountGrams, setGrindAmountGrams] = useState(18);
-  const [milkFrothed, setMilkFrothed] = useState(false);
+  const [basketSize, setBasketSize] = useState<BasketSize>(BasketSize.DOUBLE);
+  const [milkTypeId, setMilkTypeId] = useState("");
+  const [milkVolumeMl, setMilkVolumeMl] = useState(DEFAULT_MILK_VOLUME_ML);
   const [brewStyle, setBrewStyle] = useState<BrewStyle>(BrewStyle.CLASSIC);
   const [favoriteId, setFavoriteId] = useState("");
 
@@ -90,8 +100,9 @@ export default function Brews({ loaderData, actionData }: Route.ComponentProps) 
     setFavoriteId(id);
     const favorite = favorites.find((f) => f.id === id);
     if (!favorite) return;
-    setGrindAmountGrams(favorite.grindAmountGrams);
-    setMilkFrothed(favorite.milkFrothed);
+    setBasketSize(favorite.basketSize);
+    setMilkTypeId(favorite.milkTypeId ?? "");
+    setMilkVolumeMl(favorite.milkVolumeMl ?? DEFAULT_MILK_VOLUME_ML);
     setBrewStyle(favorite.brewStyle);
   }
 
@@ -161,27 +172,30 @@ export default function Brews({ loaderData, actionData }: Route.ComponentProps) 
               {beans.length === 0 && <option value="">Add a bag first</option>}
               {beans.map((bean) => (
                 <option key={bean.id} value={bean.id}>
-                  {bean.name} ({formatGrams(bean.remainingGrams)} left, {formatCents(bean.pricePerGramCents)}/g)
+                  {bean.name} ({bean.remainingGrams.toFixed(1)}g left, {formatCents(bean.pricePerGramCents)}/g)
                 </option>
               ))}
             </select>
           </div>
 
           <div>
-            <label htmlFor="grindAmountGrams" className="block text-sm font-medium">
-              Grind amount (grams)
+            <label htmlFor="basketSize" className="block text-sm font-medium">
+              Basket size
             </label>
-            <input
-              id="grindAmountGrams"
-              name="grindAmountGrams"
-              type="number"
-              step="0.1"
-              min="0.1"
+            <select
+              id="basketSize"
+              name="basketSize"
               required
-              value={grindAmountGrams}
-              onChange={(event) => setGrindAmountGrams(Number(event.target.value))}
+              value={basketSize}
+              onChange={(event) => setBasketSize(event.target.value as BasketSize)}
               className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900"
-            />
+            >
+              {BASKET_SIZE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div>
@@ -204,19 +218,44 @@ export default function Brews({ loaderData, actionData }: Route.ComponentProps) 
             </select>
           </div>
 
-          <div className="flex items-end pb-2">
-            <label htmlFor="milkFrothed" className="flex items-center gap-2 text-sm font-medium">
-              <input
-                id="milkFrothed"
-                name="milkFrothed"
-                type="checkbox"
-                checked={milkFrothed}
-                onChange={(event) => setMilkFrothed(event.target.checked)}
-                className="h-4 w-4 rounded border-gray-300"
-              />
-              Frothed milk added
+          <div>
+            <label htmlFor="milkTypeId" className="block text-sm font-medium">
+              Milk
             </label>
+            <select
+              id="milkTypeId"
+              name="milkTypeId"
+              value={milkTypeId}
+              onChange={(event) => setMilkTypeId(event.target.value)}
+              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900"
+            >
+              <option value="">No milk</option>
+              {milkTypes.map((milk) => (
+                <option key={milk.id} value={milk.id}>
+                  {milk.name} ({formatCents(milk.pricePerLiterCents)}/L)
+                </option>
+              ))}
+            </select>
           </div>
+
+          {milkTypeId && (
+            <div>
+              <label htmlFor="milkVolumeMl" className="block text-sm font-medium">
+                Milk volume (ml)
+              </label>
+              <input
+                id="milkVolumeMl"
+                name="milkVolumeMl"
+                type="number"
+                step="1"
+                min="1"
+                required
+                value={milkVolumeMl}
+                onChange={(event) => setMilkVolumeMl(Number(event.target.value))}
+                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900"
+              />
+            </div>
+          )}
 
           <div className="sm:col-span-2">
             <label htmlFor="label" className="block text-sm font-medium">
@@ -253,12 +292,12 @@ export default function Brews({ loaderData, actionData }: Route.ComponentProps) 
             <li key={brew.id} className="flex items-center justify-between gap-4 p-4">
               <div>
                 <p className="font-medium">
-                  {brew.user.name} · {formatGrams(brew.grindAmountGrams)} of {brew.bean.name}
+                  {brew.user.name} · {BASKET_SIZE_LABELS[brew.basketSize]} of {brew.bean.name}
                 </p>
                 <p className="text-xs text-gray-500">
                   {BREW_STYLE_LABELS[brew.brewStyle]}
-                  {brew.milkFrothed ? " · with frothed milk" : ""} ·{" "}
-                  {formatCents(brewCostCents(brew, brew.bean))} · {formatDateTime(brew.brewedAt)}
+                  {brew.milkType ? ` · ${brew.milkVolumeMl ?? 0}ml ${brew.milkType.name}` : ""} ·{" "}
+                  {formatCents(brewCostCents(brew, brew.bean, brew.milkType))} · {formatDateTime(brew.brewedAt)}
                   {brew.label ? ` · "${brew.label}"` : ""}
                 </p>
               </div>

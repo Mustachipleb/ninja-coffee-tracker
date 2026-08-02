@@ -2,17 +2,22 @@ import { useState } from "react";
 import { data, Form, redirect } from "react-router";
 import type { Route } from "./+types/favorites";
 import { db } from "~/lib/db.server";
+import { formatCents } from "~/lib/format";
 import { BREW_STYLE_OPTIONS, BREW_STYLE_LABELS, BrewStyle, isBrewStyle } from "~/lib/brew-style";
+import { BASKET_SIZE_OPTIONS, BASKET_SIZE_LABELS, BasketSize, isBasketSize } from "~/lib/basket-size";
+
+const DEFAULT_MILK_VOLUME_ML = 100;
 
 export async function loader() {
-  const [users, favorites] = await Promise.all([
+  const [users, milkTypes, favorites] = await Promise.all([
     db.user.findMany({ orderBy: { name: "asc" } }),
+    db.milkType.findMany({ orderBy: { name: "asc" } }),
     db.favoriteSetting.findMany({
-      include: { user: true },
+      include: { user: true, milkType: true },
       orderBy: [{ user: { name: "asc" } }, { label: "asc" }],
     }),
   ]);
-  return { users, favorites };
+  return { users, milkTypes, favorites };
 }
 
 export async function action({ request }: Route.ActionArgs) {
@@ -22,18 +27,22 @@ export async function action({ request }: Route.ActionArgs) {
   if (intent === "create") {
     const userId = String(formData.get("userId") ?? "");
     const label = String(formData.get("label") ?? "").trim();
-    const grindAmountGrams = Number(formData.get("grindAmountGrams"));
-    const milkFrothed = formData.get("milkFrothed") === "on";
+    const basketSizeRaw = String(formData.get("basketSize") ?? "");
+    const milkTypeId = String(formData.get("milkTypeId") ?? "").trim();
+    const milkVolumeMl = Number(formData.get("milkVolumeMl"));
     const brewStyleRaw = String(formData.get("brewStyle") ?? "");
 
     if (!userId || !label) {
       return data({ error: "Please choose a person and a label." }, { status: 400 });
     }
-    if (!Number.isFinite(grindAmountGrams) || grindAmountGrams <= 0) {
-      return data({ error: "Grind amount must be a positive number of grams." }, { status: 400 });
+    if (!isBasketSize(basketSizeRaw)) {
+      return data({ error: "Please choose a valid basket size." }, { status: 400 });
     }
     if (!isBrewStyle(brewStyleRaw)) {
       return data({ error: "Please choose a valid brew style." }, { status: 400 });
+    }
+    if (milkTypeId && (!Number.isFinite(milkVolumeMl) || milkVolumeMl <= 0)) {
+      return data({ error: "Please provide a positive milk volume (ml)." }, { status: 400 });
     }
 
     const existing = await db.favoriteSetting.findUnique({
@@ -44,7 +53,14 @@ export async function action({ request }: Route.ActionArgs) {
     }
 
     await db.favoriteSetting.create({
-      data: { userId, label, grindAmountGrams, milkFrothed, brewStyle: brewStyleRaw as BrewStyle },
+      data: {
+        userId,
+        label,
+        basketSize: basketSizeRaw as BasketSize,
+        milkTypeId: milkTypeId || null,
+        milkVolumeMl: milkTypeId ? milkVolumeMl : null,
+        brewStyle: brewStyleRaw as BrewStyle,
+      },
     });
     return redirect("/favorites");
   }
@@ -59,11 +75,12 @@ export async function action({ request }: Route.ActionArgs) {
 }
 
 export default function Favorites({ loaderData, actionData }: Route.ComponentProps) {
-  const { users, favorites } = loaderData;
+  const { users, milkTypes, favorites } = loaderData;
   const error = (actionData as { error?: string } | undefined)?.error;
 
-  const [grindAmountGrams, setGrindAmountGrams] = useState(18);
-  const [milkFrothed, setMilkFrothed] = useState(false);
+  const [basketSize, setBasketSize] = useState<BasketSize>(BasketSize.DOUBLE);
+  const [milkTypeId, setMilkTypeId] = useState("");
+  const [milkVolumeMl, setMilkVolumeMl] = useState(DEFAULT_MILK_VOLUME_ML);
   const [brewStyle, setBrewStyle] = useState<BrewStyle>(BrewStyle.CLASSIC);
 
   const favoritesByUser = new Map<string, typeof favorites>();
@@ -117,20 +134,23 @@ export default function Favorites({ loaderData, actionData }: Route.ComponentPro
         </div>
 
         <div>
-          <label htmlFor="grindAmountGrams" className="block text-sm font-medium">
-            Grind amount (grams)
+          <label htmlFor="basketSize" className="block text-sm font-medium">
+            Basket size
           </label>
-          <input
-            id="grindAmountGrams"
-            name="grindAmountGrams"
-            type="number"
-            step="0.1"
-            min="0.1"
+          <select
+            id="basketSize"
+            name="basketSize"
             required
-            value={grindAmountGrams}
-            onChange={(event) => setGrindAmountGrams(Number(event.target.value))}
+            value={basketSize}
+            onChange={(event) => setBasketSize(event.target.value as BasketSize)}
             className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900"
-          />
+          >
+            {BASKET_SIZE_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div>
@@ -153,19 +173,44 @@ export default function Favorites({ loaderData, actionData }: Route.ComponentPro
           </select>
         </div>
 
-        <div className="flex items-end pb-2">
-          <label htmlFor="milkFrothed" className="flex items-center gap-2 text-sm font-medium">
-            <input
-              id="milkFrothed"
-              name="milkFrothed"
-              type="checkbox"
-              checked={milkFrothed}
-              onChange={(event) => setMilkFrothed(event.target.checked)}
-              className="h-4 w-4 rounded border-gray-300"
-            />
-            Frothed milk added
+        <div>
+          <label htmlFor="milkTypeId" className="block text-sm font-medium">
+            Milk
           </label>
+          <select
+            id="milkTypeId"
+            name="milkTypeId"
+            value={milkTypeId}
+            onChange={(event) => setMilkTypeId(event.target.value)}
+            className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900"
+          >
+            <option value="">No milk</option>
+            {milkTypes.map((milk) => (
+              <option key={milk.id} value={milk.id}>
+                {milk.name} ({formatCents(milk.pricePerLiterCents)}/L)
+              </option>
+            ))}
+          </select>
         </div>
+
+        {milkTypeId && (
+          <div>
+            <label htmlFor="milkVolumeMl" className="block text-sm font-medium">
+              Milk volume (ml)
+            </label>
+            <input
+              id="milkVolumeMl"
+              name="milkVolumeMl"
+              type="number"
+              step="1"
+              min="1"
+              required
+              value={milkVolumeMl}
+              onChange={(event) => setMilkVolumeMl(Number(event.target.value))}
+              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900"
+            />
+          </div>
+        )}
 
         <div className="sm:col-span-2">
           <button
@@ -195,8 +240,8 @@ export default function Favorites({ loaderData, actionData }: Route.ComponentPro
                     <div>
                       <p className="font-medium">{favorite.label}</p>
                       <p className="text-xs text-gray-500">
-                        {favorite.grindAmountGrams}g · {BREW_STYLE_LABELS[favorite.brewStyle]}
-                        {favorite.milkFrothed ? " · with frothed milk" : ""}
+                        {BASKET_SIZE_LABELS[favorite.basketSize]} · {BREW_STYLE_LABELS[favorite.brewStyle]}
+                        {favorite.milkType ? ` · ${favorite.milkVolumeMl ?? 0}ml ${favorite.milkType.name}` : ""}
                       </p>
                     </div>
                     <Form method="post">

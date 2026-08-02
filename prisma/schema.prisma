@@ -34,6 +34,26 @@ model Bean {
   brews       Brew[]
 }
 
+/// The basket sizes available on the Ninja Luxe Premier, each with its own
+/// approximate grind (coffee grounds) weight.
+enum BasketSize {
+  SINGLE
+  DOUBLE
+  LUXE
+}
+
+/// A type of milk that can be frothed into a brew, with its own price per
+/// liter so milk cost can be added on top of the bean cost.
+model MilkType {
+  id                 String   @id @default(cuid())
+  name               String   @unique
+  pricePerLiterCents Int
+  createdAt          DateTime @default(now())
+
+  brews     Brew[]
+  favorites FavoriteSetting[]
+}
+
 /// The brewing style presets available on the Ninja Luxe Premier.
 enum BrewStyle {
   CLASSIC
@@ -46,32 +66,38 @@ enum BrewStyle {
 /// A single logged cup of coffee brewed by a user, with the exact machine
 /// settings used, so cost and habits can be tracked over time.
 model Brew {
-  id              String    @id @default(cuid())
-  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId          String
-  bean            Bean      @relation(fields: [beanId], references: [id], onDelete: Restrict)
-  beanId          String
-  grindAmountGrams Float
-  milkFrothed     Boolean   @default(false)
-  brewStyle       BrewStyle @default(CLASSIC)
-  label           String?
-  brewedAt        DateTime  @default(now())
+  id            String     @id @default(cuid())
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId        String
+  bean          Bean       @relation(fields: [beanId], references: [id], onDelete: Restrict)
+  beanId        String
+  basketSize    BasketSize @default(DOUBLE)
+  milkType      MilkType?  @relation(fields: [milkTypeId], references: [id], onDelete: Restrict)
+  milkTypeId    String?
+  milkVolumeMl  Float?
+  brewStyle     BrewStyle  @default(CLASSIC)
+  label         String?
+  brewedAt      DateTime   @default(now())
 
   @@index([userId])
   @@index([beanId])
+  @@index([milkTypeId])
 }
 
 /// A saved combination of brew settings a user likes, so it can be
 /// re-applied quickly next time instead of re-entering everything.
 model FavoriteSetting {
-  id              String    @id @default(cuid())
-  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId          String
-  label           String
-  grindAmountGrams Float
-  milkFrothed     Boolean   @default(false)
-  brewStyle       BrewStyle @default(CLASSIC)
-  createdAt       DateTime  @default(now())
+  id            String     @id @default(cuid())
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId        String
+  label         String
+  basketSize    BasketSize @default(DOUBLE)
+  milkType      MilkType?  @relation(fields: [milkTypeId], references: [id], onDelete: Restrict)
+  milkTypeId    String?
+  milkVolumeMl  Float?
+  brewStyle     BrewStyle  @default(CLASSIC)
+  createdAt     DateTime   @default(now())
 
   @@unique([userId, label])
+  @@index([milkTypeId])
 }

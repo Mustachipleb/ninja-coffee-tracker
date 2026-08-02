@@ -1,9 +1,9 @@
-const currencyFormatter = new Intl.NumberFormat("en-US", {
+const currencyFormatter = new Intl.NumberFormat("en-IE", {
   style: "currency",
-  currency: "USD",
+  currency: "EUR",
 });
 
-/** Formats an integer amount of cents as a "$1.23" style currency string. */
+/** Formats an integer amount of cents as a "€1.23" style currency string. */
 export function formatCents(cents: number): string {
   return currencyFormatter.format(cents / 100);
 }

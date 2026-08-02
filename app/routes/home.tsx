@@ -6,6 +6,7 @@ import { getUserCostSummaries } from "~/lib/cost-summary.server";
 import { brewCostCents } from "~/lib/cost";
 import { formatCents, formatDateTime, formatGrams } from "~/lib/format";
 import { BREW_STYLE_LABELS } from "~/lib/brew-style";
+import { BASKET_SIZE_LABELS } from "~/lib/basket-size";
 
 export function meta(_args: Route.MetaArgs) {
   return [
@@ -21,7 +22,7 @@ export async function loader() {
     db.brew.findMany({
       orderBy: { brewedAt: "desc" },
       take: 5,
-      include: { user: true, bean: true },
+      include: { user: true, bean: true, milkType: true },
     }),
     db.user.count(),
     db.bean.count(),
@@ -116,10 +117,10 @@ export default function Home({ loaderData }: Route.ComponentProps) {
             {recentBrews.map((brew) => (
               <li key={brew.id} className="p-3 text-sm">
                 <p className="font-medium">
-                  {brew.user.name} · {formatCents(brewCostCents(brew, brew.bean))}
+                  {brew.user.name} · {formatCents(brewCostCents(brew, brew.bean, brew.milkType))}
                 </p>
                 <p className="text-xs text-gray-500">
-                  {formatGrams(brew.grindAmountGrams)} {brew.bean.name} · {BREW_STYLE_LABELS[brew.brewStyle]} ·{" "}
+                  {BASKET_SIZE_LABELS[brew.basketSize]} {brew.bean.name} · {BREW_STYLE_LABELS[brew.brewStyle]} ·{" "}
                   {formatDateTime(brew.brewedAt)}
                 </p>
               </li>

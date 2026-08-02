@@ -4,6 +4,7 @@ const NAV_LINKS = [
   { to: "/", label: "Dashboard", end: true },
   { to: "/brews", label: "Brews" },
   { to: "/beans", label: "Beans" },
+  { to: "/milks", label: "Milks" },
   { to: "/favorites", label: "Favorites" },
   { to: "/users", label: "People" },
   { to: "/costs", label: "Costs" },

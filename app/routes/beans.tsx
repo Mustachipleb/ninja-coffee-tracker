@@ -107,7 +107,7 @@ export default function Beans({ loaderData, actionData }: Route.ComponentProps) 
         </div>
         <div>
           <label htmlFor="price" className="block text-sm font-medium">
-            Total price ($)
+            Total price (€)
           </label>
           <input
             id="price"
