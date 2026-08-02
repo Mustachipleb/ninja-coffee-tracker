@@ -51,6 +51,21 @@ export async function action({ request }: Route.ActionArgs) {
       return data({ error: "Please provide a positive milk volume (ml)." }, { status: 400 });
     }
 
+    // Compute cost so we can offer a pay-now QR redirect.
+    const [bean, milk] = await Promise.all([
+      db.bean.findUnique({ where: { id: beanId }, select: { priceCents: true, weightGrams: true } }),
+      milkTypeId
+        ? db.milkType.findUnique({ where: { id: milkTypeId }, select: { pricePerLiterCents: true } })
+        : Promise.resolve(null),
+    ]);
+    const costCents = bean
+      ? brewCostCents(
+          { basketSize: basketSizeRaw as BasketSize, milkVolumeMl: milkTypeId ? milkVolumeMl : null },
+          bean,
+          milk,
+        )
+      : 0;
+
     await db.brew.create({
       data: {
         userId,
@@ -62,6 +77,11 @@ export async function action({ request }: Route.ActionArgs) {
         label: label || null,
       },
     });
+
+    const payNow = formData.get("payNow") === "1";
+    if (payNow && costCents > 0) {
+      return redirect(`/payments?userId=${userId}&amount=${costCents}&note=Per-brew+payment`);
+    }
     return redirect("/brews?logged=1");
   }
 
@@ -443,15 +463,36 @@ export default function BrewWizard({ loaderData, actionData }: Route.ComponentPr
             />
           </div>
 
-          <button
-            type="submit"
-            name="intent"
-            value="create"
-            disabled={isSubmitting}
-            className="min-h-14 w-full rounded-lg bg-amber-700 px-4 py-3 text-base font-semibold text-white hover:bg-amber-800 disabled:opacity-50"
-          >
-            {isSubmitting ? "Logging..." : "☕ Log this brew"}
-          </button>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <button
+              type="submit"
+              name="intent"
+              value="create"
+              disabled={isSubmitting}
+              className="min-h-14 flex-1 rounded-lg bg-amber-700 px-4 py-3 text-base font-semibold text-white hover:bg-amber-800 disabled:opacity-50"
+            >
+              {isSubmitting ? "Logging..." : "☕ Log this brew"}
+            </button>
+            <button
+              type="submit"
+              name="intent"
+              value="create"
+              disabled={isSubmitting}
+              onClick={(e) => {
+                const form = e.currentTarget.form;
+                if (form) {
+                  const input = document.createElement("input");
+                  input.type = "hidden";
+                  input.name = "payNow";
+                  input.value = "1";
+                  form.appendChild(input);
+                }
+              }}
+              className="min-h-14 flex-1 rounded-lg border border-amber-700 px-4 py-3 text-base font-semibold text-amber-700 hover:bg-amber-50 disabled:opacity-50 dark:text-amber-500 dark:hover:bg-amber-950"
+            >
+              {isSubmitting ? "Logging..." : "💳 Log & pay now"}
+            </button>
+          </div>
         </Form>
       )}
 

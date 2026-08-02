@@ -19,6 +19,7 @@ model User {
 
   brews     Brew[]
   favorites FavoriteSetting[]
+  payments  Payment[]
 }
 
 /// A bag of beans that was loaded into the Ninja Luxe Premier, with the
@@ -100,4 +101,26 @@ model FavoriteSetting {
 
   @@unique([userId, label])
   @@index([milkTypeId])
+}
+
+/// Single global settings row for app-wide payment recipient configuration.
+model AppSettings {
+  id                String   @id
+  paymentRecipient  String
+  paymentIban       String
+  paymentBic        String?
+  paymentReference  String
+  updatedAt         DateTime @updatedAt
+}
+
+/// A payment made by a user toward their coffee tab.
+model Payment {
+  id          String   @id @default(cuid())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+  amountCents Int
+  note        String?
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
 }

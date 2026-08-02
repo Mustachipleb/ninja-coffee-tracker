@@ -10,6 +10,18 @@ async function main() {
     ),
   );
 
+  await db.appSettings.upsert({
+    where: { id: "global" },
+    update: {},
+    create: {
+      id: "global",
+      paymentRecipient: "Coffee Kitty",
+      paymentIban: "DE02120300000000202051",
+      paymentBic: "BYLADEM1001",
+      paymentReference: "Ninja Coffee",
+    },
+  });
+
   const yirgacheffe = await db.bean.create({
     data: {
       name: "Ethiopia Yirgacheffe",
@@ -96,7 +108,22 @@ async function main() {
     ],
   });
 
-  console.log("Seeded users, beans, milk types, favorites, and brews.");
+  await db.payment.createMany({
+    data: [
+      {
+        userId: alex.id,
+        amountCents: 500,
+        note: "Top-up",
+      },
+      {
+        userId: bri.id,
+        amountCents: 200,
+        note: "Cash settled",
+      },
+    ],
+  });
+
+  console.log("Seeded users, beans, milk types, favorites, brews, settings, and payments.");
 }
 
 main()

@@ -10,5 +10,7 @@ export default [
     route("favorites", "routes/favorites.tsx"),
     route("users", "routes/users.tsx"),
     route("costs", "routes/costs.tsx"),
+    route("payments", "routes/payments.tsx"),
+    route("settings", "routes/settings.tsx"),
   ]),
 ] satisfies RouteConfig;
