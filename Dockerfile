@@ -23,7 +23,7 @@ COPY --from=build-env /app/generated /app/generated
 COPY --from=build-env /app/prisma /app/prisma
 COPY --from=build-env /app/prisma.config.ts /app/prisma.config.ts
 WORKDIR /app
-ENV DATABASE_URL="file:./dev.db"
+ENV DATABASE_URL="file:/data/coffee.db"
 # Apply any pending migrations to the SQLite file (mount a volume over
 # /app/prisma to persist data across container restarts) then start the app.
 CMD ["sh", "-c", "npx prisma migrate deploy && npm run start"]
