@@ -12,6 +12,8 @@ FROM node:24-alpine AS build-env
 COPY . /app/
 COPY --from=development-dependencies-env /app/node_modules /app/node_modules
 WORKDIR /app
+# Set DATABASE_URL for prisma generate (just needs to be set, actual DB not required)
+ENV DATABASE_URL="file:./prisma/dev.db"
 RUN npx prisma generate
 RUN npm run build
 
