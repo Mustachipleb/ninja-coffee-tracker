@@ -76,7 +76,6 @@ model Brew {
   milkType      MilkType?  @relation(fields: [milkTypeId], references: [id], onDelete: Restrict)
   milkTypeId    String?
   milkVolumeMl  Float?
-  brewStyle     BrewStyle  @default(CLASSIC)
   label         String?
   brewedAt      DateTime   @default(now())
 
@@ -96,7 +95,6 @@ model FavoriteSetting {
   milkType      MilkType?  @relation(fields: [milkTypeId], references: [id], onDelete: Restrict)
   milkTypeId    String?
   milkVolumeMl  Float?
-  brewStyle     BrewStyle  @default(CLASSIC)
   createdAt     DateTime   @default(now())
 
   @@unique([userId, label])

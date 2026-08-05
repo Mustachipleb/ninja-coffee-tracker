@@ -5,7 +5,6 @@ import { getBeansWithUsage } from "~/lib/beans.server";
 import { getUserReconciliations } from "~/lib/reconciliation.server";
 import { brewCostCents } from "~/lib/cost";
 import { formatCents, formatDateTime, formatGrams } from "~/lib/format";
-import { BREW_STYLE_LABELS } from "~/lib/brew-style";
 import { BASKET_SIZE_LABELS } from "~/lib/basket-size";
 
 export function meta(_args: Route.MetaArgs) {
@@ -172,8 +171,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
                   {brew.user.name} · {formatCents(brewCostCents(brew, brew.bean, brew.milkType))}
                 </p>
                 <p className="text-xs text-gray-500">
-                  {BASKET_SIZE_LABELS[brew.basketSize]} {brew.bean.name} · {BREW_STYLE_LABELS[brew.brewStyle]} ·{" "}
-                  {formatDateTime(brew.brewedAt)}
+                  {BASKET_SIZE_LABELS[brew.basketSize]} {brew.bean.name} · {formatDateTime(brew.brewedAt)}
                 </p>
               </li>
             ))}

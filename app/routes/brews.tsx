@@ -5,7 +5,6 @@ import { db } from "~/lib/db.server";
 import { getBeansWithUsage } from "~/lib/beans.server";
 import { brewCostCents } from "~/lib/cost";
 import { formatCents, formatDateTime } from "~/lib/format";
-import { BREW_STYLE_OPTIONS, BREW_STYLE_LABELS, BrewStyle, isBrewStyle } from "~/lib/brew-style";
 import { BASKET_SIZE_OPTIONS, BASKET_SIZE_LABELS, BasketSize, isBasketSize } from "~/lib/basket-size";
 
 const DEFAULT_MILK_VOLUME_ML = 100;
@@ -39,7 +38,6 @@ export async function action({ request }: Route.ActionArgs) {
     const basketSizeRaw = String(formData.get("basketSize") ?? "");
     const milkTypeId = String(formData.get("milkTypeId") ?? "").trim();
     const milkVolumeMl = Number(formData.get("milkVolumeMl"));
-    const brewStyleRaw = String(formData.get("brewStyle") ?? "");
     const label = String(formData.get("label") ?? "").trim();
 
     if (!userId || !beanId) {
@@ -47,9 +45,6 @@ export async function action({ request }: Route.ActionArgs) {
     }
     if (!isBasketSize(basketSizeRaw)) {
       return data({ error: "Please choose a valid basket size." }, { status: 400 });
-    }
-    if (!isBrewStyle(brewStyleRaw)) {
-      return data({ error: "Please choose a valid brew style." }, { status: 400 });
     }
     if (milkTypeId && (!Number.isFinite(milkVolumeMl) || milkVolumeMl <= 0)) {
       return data({ error: "Please provide a positive milk volume (ml)." }, { status: 400 });
@@ -62,7 +57,6 @@ export async function action({ request }: Route.ActionArgs) {
         basketSize: basketSizeRaw as BasketSize,
         milkTypeId: milkTypeId || null,
         milkVolumeMl: milkTypeId ? milkVolumeMl : null,
-        brewStyle: brewStyleRaw as BrewStyle,
         label: label || null,
       },
     });
@@ -88,7 +82,6 @@ export default function Brews({ loaderData, actionData }: Route.ComponentProps) 
   const [basketSize, setBasketSize] = useState<BasketSize>(BasketSize.DOUBLE);
   const [milkTypeId, setMilkTypeId] = useState("");
   const [milkVolumeMl, setMilkVolumeMl] = useState(DEFAULT_MILK_VOLUME_ML);
-  const [brewStyle, setBrewStyle] = useState<BrewStyle>(BrewStyle.CLASSIC);
   const [favoriteId, setFavoriteId] = useState("");
 
   const favoritesForUser = useMemo(
@@ -103,7 +96,6 @@ export default function Brews({ loaderData, actionData }: Route.ComponentProps) 
     setBasketSize(favorite.basketSize);
     setMilkTypeId(favorite.milkTypeId ?? "");
     setMilkVolumeMl(favorite.milkVolumeMl ?? DEFAULT_MILK_VOLUME_ML);
-    setBrewStyle(favorite.brewStyle);
   }
 
   return (
@@ -213,26 +205,6 @@ export default function Brews({ loaderData, actionData }: Route.ComponentProps) 
           </div>
 
           <div>
-            <label htmlFor="brewStyle" className="block text-sm font-medium">
-              Brew style
-            </label>
-            <select
-              id="brewStyle"
-              name="brewStyle"
-              required
-              value={brewStyle}
-              onChange={(event) => setBrewStyle(event.target.value as BrewStyle)}
-              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900"
-            >
-              {BREW_STYLE_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
             <label htmlFor="milkTypeId" className="block text-sm font-medium">
               Milk
             </label>
@@ -309,7 +281,6 @@ export default function Brews({ loaderData, actionData }: Route.ComponentProps) 
                   {brew.user.name} · {BASKET_SIZE_LABELS[brew.basketSize]} of {brew.bean.name}
                 </p>
                 <p className="text-xs text-gray-500">
-                  {BREW_STYLE_LABELS[brew.brewStyle]}
                   {brew.milkType ? ` · ${brew.milkVolumeMl ?? 0}ml ${brew.milkType.name}` : ""} ·{" "}
                   {formatCents(brewCostCents(brew, brew.bean, brew.milkType))} · {formatDateTime(brew.brewedAt)}
                   {brew.label ? ` · "${brew.label}"` : ""}

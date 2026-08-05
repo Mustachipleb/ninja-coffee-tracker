@@ -5,7 +5,7 @@ import { db } from "~/lib/db.server";
 import { getBeansWithUsage } from "~/lib/beans.server";
 import { beanCostCents, brewCostCents, milkCostCents } from "~/lib/cost";
 import { formatCents } from "~/lib/format";
-import { BREW_STYLE_OPTIONS, BREW_STYLE_LABELS, BrewStyle, isBrewStyle } from "~/lib/brew-style";
+
 import { BASKET_SIZE_OPTIONS, BASKET_SIZE_LABELS, BASKET_GRAMS, BasketSize, isBasketSize } from "~/lib/basket-size";
 
 const DEFAULT_MILK_VOLUME_ML = 100;
@@ -35,7 +35,6 @@ export async function action({ request }: Route.ActionArgs) {
     const basketSizeRaw = String(formData.get("basketSize") ?? "");
     const milkTypeId = String(formData.get("milkTypeId") ?? "").trim();
     const milkVolumeMl = Number(formData.get("milkVolumeMl"));
-    const brewStyleRaw = String(formData.get("brewStyle") ?? "");
     const label = String(formData.get("label") ?? "").trim();
 
     if (!userId || !beanId) {
@@ -43,9 +42,6 @@ export async function action({ request }: Route.ActionArgs) {
     }
     if (!isBasketSize(basketSizeRaw)) {
       return data({ error: "Please choose a valid basket size." }, { status: 400 });
-    }
-    if (!isBrewStyle(brewStyleRaw)) {
-      return data({ error: "Please choose a valid brew style." }, { status: 400 });
     }
     if (milkTypeId && (!Number.isFinite(milkVolumeMl) || milkVolumeMl <= 0)) {
       return data({ error: "Please provide a positive milk volume (ml)." }, { status: 400 });
@@ -73,7 +69,6 @@ export async function action({ request }: Route.ActionArgs) {
         basketSize: basketSizeRaw as BasketSize,
         milkTypeId: milkTypeId || null,
         milkVolumeMl: milkTypeId ? milkVolumeMl : null,
-        brewStyle: brewStyleRaw as BrewStyle,
         label: label || null,
       },
     });
@@ -88,16 +83,16 @@ export async function action({ request }: Route.ActionArgs) {
   return data({ error: "Unknown action." }, { status: 400 });
 }
 
-type Step = "user" | "favorite" | "beans" | "basket" | "milk" | "style" | "review";
+type Step = "user" | "favorite" | "beans" | "basket" | "milk" | "review";
 
-const STEP_ORDER: Step[] = ["user", "favorite", "beans", "basket", "milk", "style", "review"];
+const STEP_ORDER: Step[] = ["user", "favorite", "beans", "basket", "milk", "review"];
 const STEP_TITLES: Record<Step, string> = {
   user: "Who's brewing?",
   favorite: "Use a favorite?",
   beans: "Which beans?",
   basket: "Basket size",
   milk: "Add milk?",
-  style: "Brew style",
+
   review: "Review & log",
 };
 
@@ -115,7 +110,6 @@ export default function BrewWizard({ loaderData, actionData }: Route.ComponentPr
   const [basketSize, setBasketSize] = useState<BasketSize>(BasketSize.DOUBLE);
   const [milkTypeId, setMilkTypeId] = useState("");
   const [milkVolumeMl, setMilkVolumeMl] = useState(DEFAULT_MILK_VOLUME_ML);
-  const [brewStyle, setBrewStyle] = useState<BrewStyle>(BrewStyle.CLASSIC);
   const [label, setLabel] = useState("");
 
   const step = STEP_ORDER[stepIndex];
@@ -150,8 +144,7 @@ export default function BrewWizard({ loaderData, actionData }: Route.ComponentPr
       setBasketSize(favorite.basketSize);
       setMilkTypeId(favorite.milkTypeId ?? "");
       setMilkVolumeMl(favorite.milkVolumeMl ?? DEFAULT_MILK_VOLUME_ML);
-      setBrewStyle(favorite.brewStyle);
-      // Jump straight to bean selection since the rest is pre-filled.
+      // Jump to beans selection since basket and milk are pre-filled, but beans still need choosing.
       setStepIndex(STEP_ORDER.indexOf("beans"));
       return;
     }
@@ -169,7 +162,6 @@ export default function BrewWizard({ loaderData, actionData }: Route.ComponentPr
     beans: !!beanId,
     basket: !!basketSize,
     milk: !milkTypeId || milkVolumeMl > 0,
-    style: !!brewStyle,
     review: true,
   };
 
@@ -249,7 +241,7 @@ export default function BrewWizard({ loaderData, actionData }: Route.ComponentPr
             >
               <p className="text-base font-medium">{favorite.label}</p>
               <p className="text-xs text-gray-500">
-                {BASKET_SIZE_LABELS[favorite.basketSize]} · {BREW_STYLE_LABELS[favorite.brewStyle]}
+                {BASKET_SIZE_LABELS[favorite.basketSize]}
                 {favorite.milkType ? ` · ${favorite.milkVolumeMl ?? 0}ml ${favorite.milkType.name}` : ""}
               </p>
             </button>
@@ -379,28 +371,6 @@ export default function BrewWizard({ loaderData, actionData }: Route.ComponentPr
         </div>
       )}
 
-      {step === "style" && (
-        <div className="grid grid-cols-1 gap-3">
-          {BREW_STYLE_OPTIONS.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              onClick={() => {
-                setBrewStyle(option.value);
-                goNext();
-              }}
-              className={`min-h-14 rounded-lg border px-4 py-3 text-left text-base font-medium transition-colors ${
-                brewStyle === option.value
-                  ? "border-amber-700 bg-amber-50 dark:bg-amber-950"
-                  : "border-gray-300 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-900"
-              }`}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-      )}
-
       {step === "review" && (
         <Form method="post" className="flex flex-col gap-4">
           <input type="hidden" name="userId" value={userId} />
@@ -408,7 +378,6 @@ export default function BrewWizard({ loaderData, actionData }: Route.ComponentPr
           <input type="hidden" name="basketSize" value={basketSize} />
           <input type="hidden" name="milkTypeId" value={milkTypeId} />
           <input type="hidden" name="milkVolumeMl" value={milkTypeId ? milkVolumeMl : ""} />
-          <input type="hidden" name="brewStyle" value={brewStyle} />
 
           <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
             <dl className="space-y-2 text-sm">
@@ -431,10 +400,6 @@ export default function BrewWizard({ loaderData, actionData }: Route.ComponentPr
                 <dd className="font-medium">
                   {selectedMilk ? `${milkVolumeMl}ml ${selectedMilk.name}` : "None"}
                 </dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-gray-500">Style</dt>
-                <dd className="font-medium">{BREW_STYLE_LABELS[brewStyle]}</dd>
               </div>
               <div className="flex justify-between border-t border-gray-200 pt-2 dark:border-gray-800">
                 <dt className="font-medium">Estimated cost</dt>

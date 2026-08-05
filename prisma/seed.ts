@@ -1,5 +1,5 @@
 import { PrismaClient } from "../generated/prisma/client";
-import { BrewStyle, BasketSize } from "../generated/prisma/enums";
+import { BasketSize } from "../generated/prisma/enums";
 
 const db = new PrismaClient();
 
@@ -40,12 +40,16 @@ async function main() {
     },
   });
 
-  const wholeMilk = await db.milkType.create({
-    data: { name: "Whole milk", pricePerLiterCents: 120 },
+  const wholeMilk = await db.milkType.upsert({
+    where: { name: "Whole milk" },
+    update: { pricePerLiterCents: 120 },
+    create: { name: "Whole milk", pricePerLiterCents: 120 },
   });
 
-  const oatMilk = await db.milkType.create({
-    data: { name: "Oat milk", pricePerLiterCents: 250 },
+  const oatMilk = await db.milkType.upsert({
+    where: { name: "Oat milk" },
+    update: { pricePerLiterCents: 250 },
+    create: { name: "Oat milk", pricePerLiterCents: 250 },
   });
 
   await db.favoriteSetting.createMany({
@@ -56,19 +60,16 @@ async function main() {
         basketSize: BasketSize.DOUBLE,
         milkTypeId: wholeMilk.id,
         milkVolumeMl: 150,
-        brewStyle: BrewStyle.SPECIALTY,
       },
       {
         userId: bri.id,
         label: "Quick Classic",
         basketSize: BasketSize.SINGLE,
-        brewStyle: BrewStyle.CLASSIC,
       },
       {
         userId: cass.id,
         label: "Iced Afternoon",
         basketSize: BasketSize.LUXE,
-        brewStyle: BrewStyle.OVER_ICE,
       },
     ],
   });
@@ -81,20 +82,17 @@ async function main() {
         basketSize: BasketSize.DOUBLE,
         milkTypeId: wholeMilk.id,
         milkVolumeMl: 150,
-        brewStyle: BrewStyle.SPECIALTY,
         label: "Morning Latte",
       },
       {
         userId: bri.id,
         beanId: houseBlend.id,
         basketSize: BasketSize.SINGLE,
-        brewStyle: BrewStyle.CLASSIC,
       },
       {
         userId: cass.id,
         beanId: yirgacheffe.id,
         basketSize: BasketSize.LUXE,
-        brewStyle: BrewStyle.OVER_ICE,
         label: "Iced Afternoon",
       },
       {
@@ -103,7 +101,6 @@ async function main() {
         basketSize: BasketSize.DOUBLE,
         milkTypeId: oatMilk.id,
         milkVolumeMl: 100,
-        brewStyle: BrewStyle.RICH,
       },
     ],
   });
