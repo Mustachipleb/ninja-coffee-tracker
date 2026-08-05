@@ -5,13 +5,17 @@ import { db } from "~/lib/db.server";
 import { getBeansWithUsage } from "~/lib/beans.server";
 import { beanCostCents, brewCostCents, milkCostCents } from "~/lib/cost";
 import { formatCents } from "~/lib/format";
+import { requireAuth, getCurrentUser } from "~/lib/session.server";
 
 import { BASKET_SIZE_OPTIONS, BASKET_SIZE_LABELS, BASKET_GRAMS, BasketSize, isBasketSize } from "~/lib/basket-size";
 
 const DEFAULT_MILK_VOLUME_ML = 100;
 const MILK_VOLUME_STEPS = [50, 100, 150, 200, 250, 300];
 
-export async function loader() {
+export async function loader({ request }: Route.LoaderArgs) {
+  await requireAuth(request);
+  const currentUser = await getCurrentUser(request);
+
   const [users, beans, milkTypes, favorites] = await Promise.all([
     db.user.findMany({ orderBy: { name: "asc" } }),
     getBeansWithUsage(),
@@ -22,7 +26,7 @@ export async function loader() {
     }),
   ]);
 
-  return { users, beans, milkTypes, favorites };
+  return { users, beans, milkTypes, favorites, currentUserId: currentUser?.id };
 }
 
 export async function action({ request }: Route.ActionArgs) {
@@ -97,14 +101,14 @@ const STEP_TITLES: Record<Step, string> = {
 };
 
 export default function BrewWizard({ loaderData, actionData }: Route.ComponentProps) {
-  const { users, beans, milkTypes, favorites } = loaderData;
+  const { users, beans, milkTypes, favorites, currentUserId } = loaderData;
   const error = (actionData as { error?: string } | undefined)?.error;
   const navigation = useNavigation();
   const navigate = useNavigate();
   const isSubmitting = navigation.state === "submitting";
 
   const [stepIndex, setStepIndex] = useState(0);
-  const [userId, setUserId] = useState("");
+  const [userId, setUserId] = useState(currentUserId || "");
   const [favoriteId, setFavoriteId] = useState<string | null>(null);
   const [beanId, setBeanId] = useState("");
   const [basketSize, setBasketSize] = useState<BasketSize>(BasketSize.DOUBLE);

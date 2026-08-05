@@ -1,12 +1,17 @@
 import { PrismaClient } from "../generated/prisma/client";
 import { BasketSize } from "../generated/prisma/enums";
+import { hashPassword } from "../app/lib/auth.server";
 
 const db = new PrismaClient();
 
 async function main() {
   const [alex, bri, cass] = await Promise.all(
     ["Alex", "Bri", "Cass"].map((name) =>
-      db.user.upsert({ where: { name }, update: {}, create: { name } }),
+      db.user.upsert({
+        where: { name },
+        update: {},
+        create: { name, password: hashPassword("password") },
+      }),
     ),
   );
 

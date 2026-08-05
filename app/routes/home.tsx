@@ -6,6 +6,7 @@ import { getUserReconciliations } from "~/lib/reconciliation.server";
 import { brewCostCents } from "~/lib/cost";
 import { formatCents, formatDateTime, formatGrams } from "~/lib/format";
 import { BASKET_SIZE_LABELS } from "~/lib/basket-size";
+import { requireAuth } from "~/lib/session.server";
 
 export function meta(_args: Route.MetaArgs) {
   return [
@@ -14,7 +15,9 @@ export function meta(_args: Route.MetaArgs) {
   ];
 }
 
-export async function loader() {
+export async function loader({ request }: Route.LoaderArgs) {
+  await requireAuth(request);
+
   const [reconciliations, beans, recentBrews, userCount, beanCount] = await Promise.all([
     getUserReconciliations(),
     getBeansWithUsage(),
