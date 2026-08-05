@@ -4,10 +4,14 @@ import type { Route } from "./+types/favorites";
 import { db } from "~/lib/db.server";
 import { formatCents } from "~/lib/format";
 import { BASKET_SIZE_OPTIONS, BASKET_SIZE_LABELS, BasketSize, isBasketSize } from "~/lib/basket-size";
+import { requireAuth } from "~/lib/session.server";
+import { getCurrentUserWithRole, isAdmin } from "~/lib/authorize.server";
+import { UserRole } from "~/types/roles";
 
 const DEFAULT_MILK_VOLUME_ML = 100;
 
-export async function loader() {
+export async function loader({ request }: Route.LoaderArgs) {
+  await requireAuth(request);
   const [users, milkTypes, favorites] = await Promise.all([
     db.user.findMany({ orderBy: { name: "asc" } }),
     db.milkType.findMany({ orderBy: { name: "asc" } }),
@@ -20,6 +24,9 @@ export async function loader() {
 }
 
 export async function action({ request }: Route.ActionArgs) {
+  const currentUser = await getCurrentUserWithRole(request);
+  if (!currentUser) throw redirect("/login");
+
   const formData = await request.formData();
   const intent = formData.get("intent");
 
@@ -29,6 +36,11 @@ export async function action({ request }: Route.ActionArgs) {
     const basketSizeRaw = String(formData.get("basketSize") ?? "");
     const milkTypeId = String(formData.get("milkTypeId") ?? "").trim();
     const milkVolumeMl = Number(formData.get("milkVolumeMl"));
+
+    // Users can only manage their own favorites
+    if (currentUser.id !== userId && !isAdmin(currentUser)) {
+      return data({ error: "You can only manage your own favorites." }, { status: 403 });
+    }
 
     if (!userId || !label) {
       return data({ error: "Please choose a person and a label." }, { status: 400 });
@@ -61,6 +73,13 @@ export async function action({ request }: Route.ActionArgs) {
 
   if (intent === "delete") {
     const favoriteId = String(formData.get("favoriteId") ?? "");
+    const favorite = await db.favoriteSetting.findUnique({ where: { id: favoriteId } });
+    
+    // Users can only delete their own favorites
+    if (favorite && currentUser.id !== favorite.userId && !isAdmin(currentUser)) {
+      return data({ error: "You can only delete your own favorites." }, { status: 403 });
+    }
+
     await db.favoriteSetting.delete({ where: { id: favoriteId } });
     return redirect("/favorites");
   }

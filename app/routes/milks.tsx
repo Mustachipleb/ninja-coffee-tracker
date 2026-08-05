@@ -3,8 +3,11 @@ import type { Route } from "./+types/milks";
 import { db } from "~/lib/db.server";
 import { formatCents } from "~/lib/format";
 import { getMilkTypesWithUsage } from "~/lib/milk.server";
+import { requireAuth } from "~/lib/session.server";
+import { canDeleteMilkType } from "~/lib/authorize.server";
 
-export async function loader() {
+export async function loader({ request }: Route.LoaderArgs) {
+  await requireAuth(request);
   const milkTypes = await getMilkTypesWithUsage();
   return { milkTypes };
 }
@@ -14,6 +17,7 @@ export async function action({ request }: Route.ActionArgs) {
   const intent = formData.get("intent");
 
   if (intent === "create") {
+    await requireAuth(request);
     const name = String(formData.get("name") ?? "").trim();
     const pricePerLiter = Number(formData.get("pricePerLiter"));
 
@@ -36,6 +40,13 @@ export async function action({ request }: Route.ActionArgs) {
   }
 
   if (intent === "delete") {
+    const { getCurrentUserWithRole } = await import("~/lib/authorize.server");
+    const user = await getCurrentUserWithRole(request);
+    if (!user) throw redirect("/login");
+    if (!canDeleteMilkType(user)) {
+      return data({ error: "Only admins can delete milk types." }, { status: 403 });
+    }
+
     const milkTypeId = String(formData.get("milkTypeId") ?? "");
     try {
       await db.milkType.delete({ where: { id: milkTypeId } });

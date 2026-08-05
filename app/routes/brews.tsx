@@ -6,10 +6,13 @@ import { getBeansWithUsage } from "~/lib/beans.server";
 import { brewCostCents } from "~/lib/cost";
 import { formatCents, formatDateTime } from "~/lib/format";
 import { BASKET_SIZE_OPTIONS, BASKET_SIZE_LABELS, BasketSize, isBasketSize } from "~/lib/basket-size";
+import { requireAuth } from "~/lib/session.server";
+import { getCurrentUserWithRole, canDeleteBrew } from "~/lib/authorize.server";
 
 const DEFAULT_MILK_VOLUME_ML = 100;
 
-export async function loader() {
+export async function loader({ request }: Route.LoaderArgs) {
+  await requireAuth(request);
   const [users, beans, milkTypes, favorites, brews] = await Promise.all([
     db.user.findMany({ orderBy: { name: "asc" } }),
     getBeansWithUsage(),
@@ -33,6 +36,7 @@ export async function action({ request }: Route.ActionArgs) {
   const intent = formData.get("intent");
 
   if (intent === "create") {
+    await requireAuth(request);
     const userId = String(formData.get("userId") ?? "");
     const beanId = String(formData.get("beanId") ?? "");
     const basketSizeRaw = String(formData.get("basketSize") ?? "");
@@ -64,7 +68,15 @@ export async function action({ request }: Route.ActionArgs) {
   }
 
   if (intent === "delete") {
+    const user = await getCurrentUserWithRole(request);
+    if (!user) throw redirect("/login");
+
     const brewId = String(formData.get("brewId") ?? "");
+    const canDelete = await canDeleteBrew(user, brewId);
+    if (!canDelete) {
+      return data({ error: "You can only delete your own brews." }, { status: 403 });
+    }
+
     await db.brew.delete({ where: { id: brewId } });
     return redirect("/brews");
   }

@@ -5,8 +5,14 @@ import { getUserReconciliations } from "~/lib/reconciliation.server";
 import { beanCostCents, milkCostCents } from "~/lib/cost";
 import { formatCents, formatGrams } from "~/lib/format";
 import { gramsForBasket } from "~/lib/basket-size";
+import { requireAuth } from "~/lib/session.server";
+import { getCurrentUserWithRole, canSeeAllBalances } from "~/lib/authorize.server";
 
-export async function loader(_args: Route.LoaderArgs) {
+export async function loader({ request }: Route.LoaderArgs) {
+  await requireAuth(request);
+  const currentUser = await getCurrentUserWithRole(request);
+  const showAll = canSeeAllBalances(currentUser!);
+
   const [reconciliations, beans, milkTypes] = await Promise.all([
     getUserReconciliations(),
     db.bean.findMany({
@@ -18,6 +24,11 @@ export async function loader(_args: Route.LoaderArgs) {
       include: { brews: { include: { user: true } } },
     }),
   ]);
+
+  // Filter reconciliations for non-admin users
+  const filteredReconciliations = showAll
+    ? reconciliations
+    : reconciliations.filter((r) => r.id === currentUser!.id);
 
   const beanBreakdowns = beans.map((bean) => {
     const perUser = new Map<string, { name: string; grams: number; cents: number }>();
@@ -33,7 +44,7 @@ export async function loader(_args: Route.LoaderArgs) {
       totalCents: [...perUser.values()].reduce((sum, e) => sum + e.cents, 0),
       perUser: [...perUser.values()].sort((a, b) => b.cents - a.cents),
     };
-  }).filter((bean) => bean.perUser.length > 0);
+  }).filter((bean) => showAll || bean.perUser.some((p) => p.name === currentUser!.name));
 
   const milkBreakdowns = milkTypes.map((milk) => {
     const perUser = new Map<string, { name: string; volumeMl: number; cents: number }>();
@@ -50,15 +61,15 @@ export async function loader(_args: Route.LoaderArgs) {
       totalCents: [...perUser.values()].reduce((sum, e) => sum + e.cents, 0),
       perUser: [...perUser.values()].sort((a, b) => b.cents - a.cents),
     };
-  }).filter((milk) => milk.perUser.length > 0);
+  }).filter((milk) => showAll || milk.perUser.some((p) => p.name === currentUser!.name));
 
-  const grandBrewedCents = reconciliations.reduce((sum, u) => sum + u.totalBrewedCents, 0);
-  const grandPaidCents = reconciliations.reduce((sum, u) => sum + u.totalPaidCents, 0);
-  const grandOutstandingCents = reconciliations.reduce((sum, u) => sum + Math.max(0, u.outstandingCents), 0);
-  const totalBrews = reconciliations.reduce((sum, u) => sum + u.brewCount, 0);
+  const grandBrewedCents = filteredReconciliations.reduce((sum, u) => sum + u.totalBrewedCents, 0);
+  const grandPaidCents = filteredReconciliations.reduce((sum, u) => sum + u.totalPaidCents, 0);
+  const grandOutstandingCents = filteredReconciliations.reduce((sum, u) => sum + Math.max(0, u.outstandingCents), 0);
+  const totalBrews = filteredReconciliations.reduce((sum, u) => sum + u.brewCount, 0);
 
   return {
-    reconciliations,
+    reconciliations: filteredReconciliations,
     beanBreakdowns,
     milkBreakdowns,
     grandBrewedCents,

@@ -2,13 +2,21 @@ import { data, Form, redirect } from "react-router";
 import type { Route } from "./+types/settings";
 import { db } from "~/lib/db.server";
 import { getPaymentSettings } from "~/lib/reconciliation.server";
+import { requireAuth } from "~/lib/session.server";
+import { requireRole } from "~/lib/authorize.server";
+import { UserRole } from "~/types/roles";
 
-export async function loader() {
+export async function loader({ request }: Route.LoaderArgs) {
+  await requireAuth(request);
+  await requireRole(request, UserRole.ADMIN);
   const settings = await getPaymentSettings();
   return { settings };
 }
 
 export async function action({ request }: Route.ActionArgs) {
+  await requireAuth(request);
+  await requireRole(request, UserRole.ADMIN);
+  
   const formData = await request.formData();
   const intent = formData.get("intent");
 

@@ -1,5 +1,5 @@
 import { redirect } from "react-router";
-import { getUserFromSession } from "./auth.server";
+import { getCurrentUserWithRole } from "./authorize.server";
 
 const SESSION_COOKIE_NAME = "ninja-session";
 
@@ -11,12 +11,9 @@ export async function getCurrentUser(request: Request): Promise<{
   id: string;
   name: string;
 } | null> {
-  const cookies = request.headers.get("cookie") || "";
-  const sessionId = parseCookie(cookies, SESSION_COOKIE_NAME);
-
-  if (!sessionId) return null;
-
-  return getUserFromSession(sessionId);
+  const user = await getCurrentUserWithRole(request);
+  if (!user) return null;
+  return { id: user.id, name: user.name };
 }
 
 /**

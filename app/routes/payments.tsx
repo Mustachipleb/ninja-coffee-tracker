@@ -5,17 +5,28 @@ import { db } from "~/lib/db.server";
 import { getPaymentSettings, getUserReconciliations } from "~/lib/reconciliation.server";
 import { generateEpcQrCode } from "~/lib/payment";
 import { formatCents } from "~/lib/format";
+import { requireAuth } from "~/lib/session.server";
+import { getCurrentUserWithRole, canSeeAllBalances } from "~/lib/authorize.server";
 
 export async function loader({ request }: Route.LoaderArgs) {
+  await requireAuth(request);
+  const currentUser = await getCurrentUserWithRole(request);
+  const showAll = canSeeAllBalances(currentUser!);
+
   const [reconciliations, settings] = await Promise.all([
     getUserReconciliations(),
     getPaymentSettings(),
   ]);
 
+  // Filter reconciliations for non-admin users
+  const filteredReconciliations = showAll
+    ? reconciliations
+    : reconciliations.filter((r) => r.id === currentUser!.id);
+
   // Pre-generate QR codes for users with an outstanding balance.
   const qrCodes: Record<string, string> = {};
   if (settings.paymentIban && settings.paymentRecipient) {
-    for (const user of reconciliations) {
+    for (const user of filteredReconciliations) {
       if (user.outstandingCents > 0) {
         try {
           qrCodes[user.id] = await generateEpcQrCode(user.outstandingCents / 100, {
@@ -41,7 +52,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 
   let perBrewQr: string | null = null;
   if (perBrewUserId && perBrewAmountCents && settings.paymentIban && settings.paymentRecipient) {
-    const user = reconciliations.find((u) => u.id === perBrewUserId);
+    const user = filteredReconciliations.find((u) => u.id === perBrewUserId);
     if (user) {
       try {
         perBrewQr = await generateEpcQrCode(perBrewAmountCents / 100, {
@@ -56,16 +67,24 @@ export async function loader({ request }: Route.LoaderArgs) {
     }
   }
 
-  return { reconciliations, settings, qrCodes, settingsConfigured, perBrewUserId, perBrewAmountCents, perBrewNote, perBrewQr };
+  return { reconciliations: filteredReconciliations, settings, qrCodes, settingsConfigured, perBrewUserId, perBrewAmountCents, perBrewNote, perBrewQr };
 }
 
 export async function action({ request }: Route.ActionArgs) {
+  const currentUser = await getCurrentUserWithRole(request);
+  if (!currentUser) throw redirect("/login");
+
   const formData = await request.formData();
   const intent = formData.get("intent");
 
   if (intent === "settle") {
     const userId = String(formData.get("userId") ?? "");
     const amountCents = parseInt(String(formData.get("amountCents") ?? "0"), 10);
+
+    // Users can only pay their own balance; admins can pay for anyone
+    if (!canSeeAllBalances(currentUser) && userId !== currentUser.id) {
+      return data({ error: "You can only pay your own balance." }, { status: 403 });
+    }
 
     if (!userId || !Number.isFinite(amountCents) || amountCents <= 0) {
       return data({ error: "Invalid payment details." }, { status: 400 });

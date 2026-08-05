@@ -3,8 +3,11 @@ import type { Route } from "./+types/beans";
 import { db } from "~/lib/db.server";
 import { formatCents, formatGrams, formatDateTime } from "~/lib/format";
 import { getBeansWithUsage } from "~/lib/beans.server";
+import { requireAuth } from "~/lib/session.server";
+import { canDeleteBean } from "~/lib/authorize.server";
 
-export async function loader() {
+export async function loader({ request }: Route.LoaderArgs) {
+  await requireAuth(request);
   const beans = await getBeansWithUsage();
   return { beans };
 }
@@ -14,6 +17,7 @@ export async function action({ request }: Route.ActionArgs) {
   const intent = formData.get("intent");
 
   if (intent === "create") {
+    await requireAuth(request);
     const name = String(formData.get("name") ?? "").trim();
     const roaster = String(formData.get("roaster") ?? "").trim();
     const weightGrams = Number(formData.get("weightGrams"));
@@ -35,6 +39,13 @@ export async function action({ request }: Route.ActionArgs) {
   }
 
   if (intent === "delete") {
+    const { getCurrentUserWithRole } = await import("~/lib/authorize.server");
+    const user = await getCurrentUserWithRole(request);
+    if (!user) throw redirect("/login");
+    if (!canDeleteBean(user)) {
+      return data({ error: "Only admins can delete beans." }, { status: 403 });
+    }
+
     const beanId = String(formData.get("beanId") ?? "");
     try {
       await db.bean.delete({ where: { id: beanId } });
