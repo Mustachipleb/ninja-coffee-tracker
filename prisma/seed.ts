@@ -5,12 +5,15 @@ import { hashPassword } from "../app/lib/auth.server";
 const db = new PrismaClient();
 
 async function main() {
+  // Hash passwords
+  const hashedPassword = await hashPassword("password");
+
   const [alex, bri, cass] = await Promise.all(
     ["Alex", "Bri", "Cass"].map((name) =>
       db.user.upsert({
         where: { name },
         update: {},
-        create: { name, password: hashPassword("password") },
+        create: { name, password: hashedPassword },
       }),
     ),
   );

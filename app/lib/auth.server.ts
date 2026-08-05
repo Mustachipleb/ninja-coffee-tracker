@@ -1,24 +1,30 @@
 import { db } from "./db.server";
 import * as crypto from "crypto";
+import * as argon2 from "argon2";
 
 const SESSION_DURATION_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 /**
- * Hash a password using a simple approach.
- * For production, use bcrypt or Argon2.
+ * Hash a password using Argon2id (memory-hard, secure).
  */
-export function hashPassword(password: string): string {
-  return crypto
-    .createHash("sha256")
-    .update(password + process.env.PASSWORD_SALT || "ninja-coffee")
-    .digest("hex");
+export async function hashPassword(password: string): Promise<string> {
+  return argon2.hash(password, {
+    type: argon2.argon2id,
+    memoryCost: 19 * 1024, // 19 MB
+    timeCost: 2,
+    parallelism: 1,
+  });
 }
 
 /**
  * Verify a password against a hash.
  */
-export function verifyPassword(password: string, hash: string): boolean {
-  return hashPassword(password) === hash;
+export async function verifyPassword(password: string, hash: string): Promise<boolean> {
+  try {
+    return await argon2.verify(hash, password);
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -91,7 +97,7 @@ export async function authenticateUser(
   });
 
   if (!user || !user.password) return null;
-  if (!verifyPassword(password, user.password)) return null;
+  if (!(await verifyPassword(password, user.password))) return null;
 
   return user.id;
 }
