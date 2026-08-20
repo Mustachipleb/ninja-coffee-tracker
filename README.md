@@ -100,7 +100,7 @@ prisma/
 
 The included `Dockerfile` builds the app and, on container start, runs
 `prisma migrate deploy` against a SQLite file before starting the server.
-Mount a volume over `/app/prisma` to persist data across restarts:
+Mount a volume over `/app/prisma` to persist data across restarts
 
 ```bash
 docker build -t ninja-coffee-tracker .
