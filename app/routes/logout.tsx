@@ -1,6 +1,7 @@
 import { redirect } from "react-router";
 import type { Route } from "./+types/logout";
 import { deleteSession } from "~/lib/auth.server";
+import { getCookieValue } from "~/lib/cookies.server";
 import { getCurrentUser, getLogoutCookie } from "~/lib/session.server";
 
 export async function action({ request }: Route.ActionArgs) {
@@ -8,8 +9,10 @@ export async function action({ request }: Route.ActionArgs) {
 
   if (user) {
     // Get session ID from cookie and delete it
-    const cookies = request.headers.get("cookie") || "";
-    const sessionId = parseCookie(cookies, "ninja-session");
+    const sessionId = getCookieValue(
+      request.headers.get("cookie"),
+      "ninja-session",
+    );
     if (sessionId) {
       await deleteSession(sessionId);
     }
@@ -19,20 +22,4 @@ export async function action({ request }: Route.ActionArgs) {
   return redirect("/login", {
     headers: { "Set-Cookie": cookie },
   });
-}
-
-function parseCookie(cookieHeader: string, name: string): string | null {
-  const cookies = cookieHeader
-    .split(";")
-    .map((c) => c.trim())
-    .reduce(
-      (acc, c) => {
-        const [key, value] = c.split("=");
-        acc[key] = decodeURIComponent(value || "");
-        return acc;
-      },
-      {} as Record<string, string>,
-    );
-
-  return cookies[name] || null;
 }

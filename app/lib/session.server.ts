@@ -43,22 +43,3 @@ export function getSessionCookie(sessionId: string): string {
 export function getLogoutCookie(): string {
   return `${SESSION_COOKIE_NAME}=; Path=/; HttpOnly; Expires=Thu, 01 Jan 1970 00:00:00 GMT`;
 }
-
-/**
- * Parse a specific cookie from the cookie header string.
- */
-function parseCookie(cookieHeader: string, name: string): string | null {
-  const cookies = cookieHeader
-    .split(";")
-    .map((c) => c.trim())
-    .reduce(
-      (acc, c) => {
-        const [key, value] = c.split("=");
-        acc[key] = decodeURIComponent(value || "");
-        return acc;
-      },
-      {} as Record<string, string>,
-    );
-
-  return cookies[name] || null;
-}

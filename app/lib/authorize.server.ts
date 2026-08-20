@@ -1,5 +1,6 @@
 import { redirect } from "react-router";
 import { db } from "./db.server";
+import { getCookieValue } from "./cookies.server";
 import { UserRole } from "~/types/roles";
 
 export interface AuthorizedUser {
@@ -15,8 +16,10 @@ export interface AuthorizedUser {
 export async function getCurrentUserWithRole(
   request: Request,
 ): Promise<AuthorizedUser | null> {
-  const cookies = request.headers.get("cookie") || "";
-  const sessionId = parseCookie(cookies, "ninja-session");
+  const sessionId = getCookieValue(
+    request.headers.get("cookie"),
+    "ninja-session",
+  );
 
   if (!sessionId) return null;
 
@@ -127,20 +130,4 @@ export function canSeeAllBalances(user: AuthorizedUser): boolean {
  */
 export function canChangeSettings(user: AuthorizedUser): boolean {
   return isAdmin(user);
-}
-
-function parseCookie(cookieHeader: string, name: string): string | null {
-  const cookies = cookieHeader
-    .split(";")
-    .map((c) => c.trim())
-    .reduce(
-      (acc, c) => {
-        const [key, value] = c.split("=");
-        acc[key] = decodeURIComponent(value || "");
-        return acc;
-      },
-      {} as Record<string, string>,
-    );
-
-  return cookies[name] || null;
 }
