@@ -9,6 +9,12 @@ import {
 
 import type { Route } from "./+types/root";
 import "./app.css";
+import { ensureAdminUser } from "~/lib/bootstrap-admin.server";
+
+export async function loader() {
+  await ensureAdminUser();
+  return null;
+}
 
 export const links: Route.LinksFunction = () => [
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
