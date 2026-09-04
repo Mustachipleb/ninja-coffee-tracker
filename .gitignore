@@ -12,3 +12,6 @@
 /prisma/dev.db
 /prisma/dev.db-journal
 
+# Playwright MCP session snapshots
+/.playwright-mcp/
+
