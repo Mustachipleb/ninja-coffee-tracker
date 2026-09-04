@@ -25,7 +25,14 @@ COPY --from=build-env /app/generated /app/generated
 COPY --from=build-env /app/prisma /app/prisma
 COPY --from=build-env /app/prisma.config.ts /app/prisma.config.ts
 WORKDIR /app
+RUN mkdir -p /data
 ENV DATABASE_URL="file:/data/coffee.db"
-# Apply any pending migrations to the SQLite file (mount a volume over
-# /app/prisma to persist data across container restarts) then start the app.
+# Mount a volume over /data to persist the SQLite database across container
+# restarts/recreations (it is NOT under /app/prisma, which only holds the
+# schema/migrations baked into the image).
+VOLUME /data
+# Apply any pending migrations to the SQLite file, then start the app.
+#
+# Optionally set ADMIN_USERNAME and ADMIN_PASSWORD to auto-create a first
+# admin user on startup (only if no user with that name exists yet).
 CMD ["sh", "-c", "npx prisma migrate deploy && npm run start"]

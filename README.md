@@ -100,9 +100,27 @@ prisma/
 
 The included `Dockerfile` builds the app and, on container start, runs
 `prisma migrate deploy` against a SQLite file before starting the server.
-Mount a volume over `/app/prisma` to persist data across restarts
+The database lives at `/data/coffee.db` inside the container — mount a
+volume over `/data` to persist it across restarts/recreations.
+
+Set `ADMIN_USERNAME` and `ADMIN_PASSWORD` to have the app create a first
+admin user automatically on startup (skipped if a user with that name
+already exists), so a fresh deployment doesn't require manual database
+access to get an initial login.
 
 ```bash
 docker build -t ninja-coffee-tracker .
-docker run -p 3000:3000 -v ninja-coffee-data:/app/prisma ninja-coffee-tracker
+docker run -p 3000:3000 \
+  -v ninja-coffee-data:/data \
+  -e ADMIN_USERNAME=admin \
+  -e ADMIN_PASSWORD=change-me \
+  ninja-coffee-tracker
 ```
+
+> [!NOTE]
+> The session cookie is only marked `Secure` when the request is actually
+> HTTPS (checked via `X-Forwarded-Proto` behind a reverse proxy, or the
+> request URL otherwise) — see `app/lib/session.server.ts`. This lets login
+> work when the container is exposed directly over plain HTTP (e.g. on a
+> LAN IP without TLS), while still using `Secure` cookies automatically once
+> you put it behind an HTTPS-terminating reverse proxy.
