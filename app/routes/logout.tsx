@@ -18,7 +18,7 @@ export async function action({ request }: Route.ActionArgs) {
     }
   }
 
-  const cookie = getLogoutCookie();
+  const cookie = getLogoutCookie(request);
   return redirect("/login", {
     headers: { "Set-Cookie": cookie },
   });

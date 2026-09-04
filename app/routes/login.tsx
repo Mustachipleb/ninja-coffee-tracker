@@ -31,7 +31,7 @@ export async function action({ request }: Route.ActionArgs) {
   }
 
   const sessionId = await createSession(userId);
-  const cookie = getSessionCookie(sessionId);
+  const cookie = getSessionCookie(sessionId, request);
 
   return redirect("/", {
     headers: { "Set-Cookie": cookie },
