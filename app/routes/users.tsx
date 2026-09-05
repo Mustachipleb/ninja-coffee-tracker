@@ -1,9 +1,11 @@
-import { data, Form, redirect } from "react-router";
+import { data, Form, redirect, useSearchParams } from "react-router";
 import type { Route } from "./+types/users";
 import { db } from "~/lib/db.server";
 import { requireAuth } from "~/lib/session.server";
 import { getCurrentUserWithRole, requireRole, isAdmin } from "~/lib/authorize.server";
 import { UserRole } from "~/types/roles";
+import { hashPassword } from "~/lib/auth.server";
+import { MIN_PASSWORD_LENGTH } from "~/lib/password";
 
 export async function loader({ request }: Route.LoaderArgs) {
   await requireAuth(request);
@@ -82,12 +84,38 @@ export async function action({ request }: Route.ActionArgs) {
     return redirect("/users");
   }
 
+  if (intent === "reset-password") {
+    const userId = String(formData.get("userId") ?? "");
+    const newPassword = String(formData.get("newPassword") ?? "");
+
+    if (newPassword.length < MIN_PASSWORD_LENGTH) {
+      return data(
+        { error: `New password must be at least ${MIN_PASSWORD_LENGTH} characters.` },
+        { status: 400 },
+      );
+    }
+
+    const targetUser = await db.user.findUnique({ where: { id: userId } });
+    if (!targetUser) {
+      return data({ error: "User not found." }, { status: 404 });
+    }
+
+    const hashedPassword = await hashPassword(newPassword);
+    await db.user.update({
+      where: { id: userId },
+      data: { password: hashedPassword },
+    });
+    return redirect("/users?passwordReset=1");
+  }
+
   return data({ error: "Unknown action." }, { status: 400 });
 }
 
 export default function Users({ loaderData, actionData }: Route.ComponentProps) {
   const { users } = loaderData;
   const error = (actionData as { error?: string } | undefined)?.error;
+  const [searchParams] = useSearchParams();
+  const passwordReset = searchParams.get("passwordReset") === "1";
 
   return (
     <div className="mx-auto max-w-3xl space-y-8">
@@ -97,6 +125,12 @@ export default function Users({ loaderData, actionData }: Route.ComponentProps) 
           Everyone in the friend group who brews (and pays for) coffee. Manage roles and members.
         </p>
       </div>
+
+      {passwordReset && !error && (
+        <p className="rounded-md bg-green-50 p-3 text-sm text-green-700 dark:bg-green-950 dark:text-green-300">
+          Password reset successfully.
+        </p>
+      )}
 
       <Form method="post" className="flex items-end gap-2 rounded-lg border border-gray-200 p-4 dark:border-gray-800">
         <div className="flex-1">
@@ -129,13 +163,14 @@ export default function Users({ loaderData, actionData }: Route.ComponentProps) 
               <th className="px-4 py-3 text-left font-medium">Name</th>
               <th className="px-4 py-3 text-left font-medium">Role</th>
               <th className="px-4 py-3 text-left font-medium">Activity</th>
+              <th className="px-4 py-3 text-left font-medium">Password</th>
               <th className="px-4 py-3 text-right font-medium">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
             {users.length === 0 && (
               <tr>
-                <td colSpan={4} className="p-4 text-center text-gray-500">
+                <td colSpan={5} className="p-4 text-center text-gray-500">
                   No one has been added yet.
                 </td>
               </tr>
@@ -163,6 +198,35 @@ export default function Users({ loaderData, actionData }: Route.ComponentProps) 
                 <td className="px-4 py-3 text-xs text-gray-500">
                   {user._count.brews} brew{user._count.brews === 1 ? "" : "s"} ·{" "}
                   {user._count.favorites} favorite{user._count.favorites === 1 ? "" : "s"}
+                </td>
+                <td className="px-4 py-3">
+                  <Form
+                    method="post"
+                    className="flex items-center gap-1"
+                    onSubmit={(event) => {
+                      if (!confirm(`Reset ${user.name}'s password?`)) {
+                        event.preventDefault();
+                      }
+                    }}
+                  >
+                    <input type="hidden" name="userId" value={user.id} />
+                    <input
+                      type="password"
+                      name="newPassword"
+                      required
+                      minLength={MIN_PASSWORD_LENGTH}
+                      placeholder="New password"
+                      className="w-32 rounded border border-gray-300 px-2 py-1 text-xs dark:border-gray-700 dark:bg-gray-900"
+                    />
+                    <button
+                      type="submit"
+                      name="intent"
+                      value="reset-password"
+                      className="text-xs text-amber-700 hover:underline dark:text-amber-500"
+                    >
+                      Reset
+                    </button>
+                  </Form>
                 </td>
                 <td className="px-4 py-3 text-right">
                   <Form method="post" className="inline">
