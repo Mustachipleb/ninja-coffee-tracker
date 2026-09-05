@@ -18,6 +18,7 @@ const NAV_LINKS = [
   { to: "/costs", label: "Costs" },
   { to: "/payments", label: "Payments" },
   { to: "/settings", label: "⚙ Settings" },
+  { to: "/account", label: "🔑 Account" },
 ];
 
 export default function AppLayout({ loaderData }: Route.ComponentProps) {
